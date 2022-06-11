@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "use-sync-external-store/shim/index.js";
+import produce from "immer";
 
 const opine = (slices) => {
   const listeners = new Set();
@@ -8,7 +9,7 @@ const opine = (slices) => {
   const getState = () => state;
 
   const setState = (fn) => {
-    state = fn(state);
+    state = produce(state, (draft) => fn(draft));
     listeners.forEach((listener) => listener());
   };
 
