@@ -1,26 +1,27 @@
-import { useSyncExternalStore } from "use-sync-external-store/shim/index.js";
+import { useSyncExternalStore } from "react";
 import produce from "immer";
+import mapValues from "lodash.mapvalues";
 
-const opine = (slices) => {
+const createStore = ({ slices }) => {
   const listeners = new Set();
   let state = {};
   let actions = {};
 
   const getState = () => state;
 
-  const setState = (fn) => {
-    state = produce(state, (draft) => fn(draft));
+  const setState = (newState) => {
+    state = newState;
     listeners.forEach((listener) => listener());
   };
 
-  slices.forEach((slice) => {
-    state[slice.name] = slice.state;
-    actions[slice.name] = Object.fromEntries(
-      Object.entries(slice.actions).map(([key, action]) => [
-        key,
-        action(setState),
-      ])
-    );
+  Object.entries(slices).forEach(([sliceKey, slice]) => {
+    state[sliceKey] = slice.initialState;
+    actions[sliceKey] = mapValues(slice.actions, (action) => (...args) => {
+      setState({
+        ...state,
+        [sliceKey]: produce(state[sliceKey], action(...args)),
+      });
+    });
   });
 
   const subscribe = (callback) => {
@@ -31,11 +32,9 @@ const opine = (slices) => {
   const useStore = (selector) =>
     useSyncExternalStore(subscribe, () => selector(getState()));
 
-  Object.assign(useStore, { getState, setState, actions });
+  Object.assign(useStore, { getState, actions });
 
   return useStore;
 };
 
-export const createSlice = (name, state, actions) => ({ name, state, actions });
-
-export default opine;
+export default createStore;
