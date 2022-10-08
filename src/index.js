@@ -2,6 +2,17 @@ import { useSyncExternalStore } from "react";
 import produce from "immer";
 import mapValues from "lodash.mapvalues";
 
+export const withImmer = (store) => {
+  const originalSet = store.setState;
+  store.setState = (action) =>
+    originalSet((state) =>
+      produce(state, (draft) => {
+        draft = action(draft);
+      })
+    );
+  return store;
+};
+
 const createStore = ({ slices }) => {
   const listeners = new Set();
   let state = {};
@@ -9,20 +20,10 @@ const createStore = ({ slices }) => {
 
   const getState = () => state;
 
-  const setState = (newState) => {
-    state = newState;
+  const setState = (fn) => {
+    state = fn(state);
     listeners.forEach((listener) => listener());
   };
-
-  Object.entries(slices).forEach(([sliceKey, slice]) => {
-    state[sliceKey] = slice.initialState;
-    actions[sliceKey] = mapValues(slice.actions, (action) => (...args) => {
-      setState({
-        ...state,
-        [sliceKey]: produce(state[sliceKey], action(...args)),
-      });
-    });
-  });
 
   const subscribe = (callback) => {
     listeners.add(callback);
@@ -32,7 +33,17 @@ const createStore = ({ slices }) => {
   const useStore = (selector) =>
     useSyncExternalStore(subscribe, () => selector(getState()));
 
-  Object.assign(useStore, { getState, actions });
+  Object.assign(useStore, { getState, setState, actions });
+
+  Object.entries(slices).forEach(([sliceKey, slice]) => {
+    state[sliceKey] = slice.initialState;
+    actions[sliceKey] = mapValues(slice.actions, (action) => (...args) => {
+      useStore.setState((previousState) => ({
+        ...previousState,
+        [sliceKey]: action(...args)(previousState[sliceKey]),
+      }));
+    });
+  });
 
   return useStore;
 };
