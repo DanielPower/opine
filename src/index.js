@@ -4,12 +4,25 @@ import mapValues from "lodash.mapvalues";
 
 export const withImmer = (store) => {
   const originalSet = store.setState;
-  store.setState = (action) =>
+  store.setState = (fn) =>
     originalSet((state) =>
       produce(state, (draft) => {
-        draft = action(draft);
+        draft = fn(draft);
       })
     );
+  return store;
+};
+
+export const withDevTools = (store) => {
+  if (window.__REDUX_DEVTOOLS_EXTENSION__) {
+    const devTools = window.__REDUX_DEVTOOLS_EXTENSION__.connect();
+    devTools.init(store.getState());
+    const originalSet = store.setState;
+    store.setState = (fn, name) => {
+      originalSet(fn, name);
+      devTools.send(name, store.getState());
+    };
+  }
   return store;
 };
 
@@ -37,12 +50,19 @@ const createStore = ({ slices }) => {
 
   Object.entries(slices).forEach(([sliceKey, slice]) => {
     state[sliceKey] = slice.initialState;
-    actions[sliceKey] = mapValues(slice.actions, (action) => (...args) => {
-      useStore.setState((previousState) => ({
-        ...previousState,
-        [sliceKey]: action(...args)(previousState[sliceKey]),
-      }));
-    });
+    actions[sliceKey] = mapValues(
+      slice.actions,
+      (action, actionKey) =>
+        (...args) => {
+          useStore.setState(
+            (previousState) => ({
+              ...previousState,
+              [sliceKey]: action(...args)(previousState[sliceKey]),
+            }),
+            `${sliceKey}/${actionKey}`
+          );
+        }
+    );
   });
 
   return useStore;
