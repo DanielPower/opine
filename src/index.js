@@ -4,20 +4,27 @@ import mapValues from "lodash.mapvalues";
 
 export const withImmer = (store) => {
   const originalSet = store.setState;
-  store.setState = (fn) =>
-    originalSet((state) =>
-      produce(state, (draft) => {
-        draft = fn(draft);
-      })
+  store.setState = (fn, name) =>
+    originalSet(
+      (state) =>
+        produce(state, (draft) => {
+          draft = fn(draft);
+        }),
+      name
     );
   return store;
 };
 
-export const withDevTools = (store) => {
+export const withDevTools = (store, options) => {
   if (window.__REDUX_DEVTOOLS_EXTENSION__) {
     const devTools = window.__REDUX_DEVTOOLS_EXTENSION__.connect();
-    devTools.init(store.getState());
     const originalSet = store.setState;
+    devTools.init(store.getState(), options);
+    devTools.subscribe((message) => {
+      if (message.type === "DISPATCH" && message.state) {
+        originalSet(() => JSON.parse(message.state));
+      }
+    });
     store.setState = (fn, name) => {
       originalSet(fn, name);
       devTools.send(name, store.getState());
