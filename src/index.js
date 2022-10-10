@@ -37,6 +37,7 @@ const createStore = ({ slices }) => {
   const listeners = new Set();
   let state = {};
   let actions = {};
+  let composedActions = {};
 
   const getState = () => state;
 
@@ -53,7 +54,7 @@ const createStore = ({ slices }) => {
   const useStore = (selector) =>
     useSyncExternalStore(subscribe, () => selector(getState()));
 
-  Object.assign(useStore, { getState, setState, actions });
+  const transformationFunctions = mapValues(slices, (slice) => slice.actions);
 
   Object.entries(slices).forEach(([sliceKey, slice]) => {
     state[sliceKey] = slice.initialState;
@@ -70,7 +71,18 @@ const createStore = ({ slices }) => {
           );
         }
     );
+    if (slice.composedActions) {
+      console.log(slice.composedActions(transformationFunctions));
+      composedActions[sliceKey] = mapValues(
+        slice.composedActions(transformationFunctions),
+        (transformations) =>
+          transformations.reduce(state, (acc, action) => action(acc))
+      );
+    }
   });
+
+  Object.assign(useStore, { getState, setState, actions, composedActions });
+  console.log(actions, composedActions);
 
   return useStore;
 };
