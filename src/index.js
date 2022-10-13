@@ -5,7 +5,6 @@ const createStore = ({ slices }) => {
   const listeners = new Set();
   let state = {};
   let actions = {};
-  let composedActions = {};
 
   const getState = () => state;
 
@@ -13,6 +12,11 @@ const createStore = ({ slices }) => {
     state = fn(state);
     listeners.forEach((listener) => listener());
   };
+
+  const transformSlice = (state, sliceKey, fn) => ({
+    ...state,
+    [sliceKey]: fn(state[sliceKey]),
+  });
 
   const subscribe = (callback) => {
     listeners.add(callback);
@@ -23,13 +27,24 @@ const createStore = ({ slices }) => {
     useSyncExternalStore(subscribe, () => selector(getState()));
 
   const transformationFunctions = mapValues(slices, (slice, sliceKey) =>
-    mapValues(slice.actions, (action) => (state) => ({
-      ...state,
-      [sliceKey]: action(state[sliceKey]),
-    }))
+    mapValues(
+      slice.actions,
+      (action) =>
+        (...args) =>
+        (state) =>
+          transformSlice(state, sliceKey, action(...args))
+    )
   );
 
-  console.log(transformationFunctions);
+  const compose = (fn) => {
+    const transformations = fn(transformationFunctions);
+    setState((state) =>
+      transformations.reduce(
+        (acc, transformation) => transformation(acc),
+        state
+      )
+    );
+  };
 
   Object.entries(slices).forEach(([sliceKey, slice]) => {
     state[sliceKey] = slice.initialState;
@@ -38,34 +53,14 @@ const createStore = ({ slices }) => {
       (action, actionKey) =>
         (...args) => {
           useStore.setState(
-            (previousState) => ({
-              ...previousState,
-              [sliceKey]: action(...args)(previousState[sliceKey]),
-            }),
+            transformSlice(state, sliceKey, action(...args)),
             `${sliceKey}/${actionKey}`
           );
         }
     );
-    if (slice.composedActions) {
-      composedActions[sliceKey] = mapValues(slice.composedActions, (fn) => {
-        console.log(fn);
-        const transformations = fn(transformationFunctions);
-        console.log(transformations);
-        return (...args) => {
-          console.log(transformations);
-          console.log(args);
-          const newState = transformations.reduce(
-            (acc, transformation) => transformation(acc),
-            state
-          );
-          console.log(newState);
-        };
-      });
-    }
   });
-  console.log(composedActions);
 
-  Object.assign(useStore, { getState, setState, actions, composedActions });
+  Object.assign(useStore, { getState, setState, actions, compose });
 
   return useStore;
 };
