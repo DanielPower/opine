@@ -1,37 +1,5 @@
 import { useSyncExternalStore } from "react";
-import produce from "immer";
 import mapValues from "lodash.mapvalues";
-
-export const withImmer = (store) => {
-  const originalSet = store.setState;
-  store.setState = (fn, name) =>
-    originalSet(
-      (state) =>
-        produce(state, (draft) => {
-          draft = fn(draft);
-        }),
-      name
-    );
-  return store;
-};
-
-export const withDevTools = (store, options) => {
-  if (window.__REDUX_DEVTOOLS_EXTENSION__) {
-    const devTools = window.__REDUX_DEVTOOLS_EXTENSION__.connect();
-    const originalSet = store.setState;
-    devTools.init(store.getState(), options);
-    devTools.subscribe((message) => {
-      if (message.type === "DISPATCH" && message.state) {
-        originalSet(() => JSON.parse(message.state));
-      }
-    });
-    store.setState = (fn, name) => {
-      originalSet(fn, name);
-      devTools.send(name, store.getState());
-    };
-  }
-  return store;
-};
 
 const createStore = ({ slices }) => {
   const listeners = new Set();
@@ -54,7 +22,14 @@ const createStore = ({ slices }) => {
   const useStore = (selector) =>
     useSyncExternalStore(subscribe, () => selector(getState()));
 
-  const transformationFunctions = mapValues(slices, (slice) => slice.actions);
+  const transformationFunctions = mapValues(slices, (slice, sliceKey) =>
+    mapValues(slice.actions, (action) => (state) => ({
+      ...state,
+      [sliceKey]: action(state[sliceKey]),
+    }))
+  );
+
+  console.log(transformationFunctions);
 
   Object.entries(slices).forEach(([sliceKey, slice]) => {
     state[sliceKey] = slice.initialState;
@@ -72,17 +47,25 @@ const createStore = ({ slices }) => {
         }
     );
     if (slice.composedActions) {
-      console.log(slice.composedActions(transformationFunctions));
-      composedActions[sliceKey] = mapValues(
-        slice.composedActions(transformationFunctions),
-        (transformations) =>
-          transformations.reduce(state, (acc, action) => action(acc))
-      );
+      composedActions[sliceKey] = mapValues(slice.composedActions, (fn) => {
+        console.log(fn);
+        const transformations = fn(transformationFunctions);
+        console.log(transformations);
+        return (...args) => {
+          console.log(transformations);
+          console.log(args);
+          const newState = transformations.reduce(
+            (acc, transformation) => transformation(acc),
+            state
+          );
+          console.log(newState);
+        };
+      });
     }
   });
+  console.log(composedActions);
 
   Object.assign(useStore, { getState, setState, actions, composedActions });
-  console.log(actions, composedActions);
 
   return useStore;
 };

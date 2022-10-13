@@ -2,10 +2,26 @@
   "name": "opine",
   "type": "module",
   "main": "src/index.js",
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
   "dependencies": {
-    "immer": "^9.0.15",
-    "lodash.mapvalues": "^4.6.0",
-    "prettier": "^2.7.1",
-    "react": "^18.2.0"
+    "lodash.mapvalues": "^4.6.0"
+  },
+  "devDependencies": {
+    "prettier": "^2.7.1"
+  },
+  "peerDependencies": {
+    "immer": ">=9.0",
+    "react": ">=16.8"
+  },
+  "peerDependenciesMeta": {
+    "immer": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   }
 }
