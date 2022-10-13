@@ -13,11 +13,6 @@ const createStore = ({ slices }) => {
     listeners.forEach((listener) => listener());
   };
 
-  const transformSlice = (state, sliceKey, fn) => ({
-    ...state,
-    [sliceKey]: fn(state[sliceKey]),
-  });
-
   const subscribe = (callback) => {
     listeners.add(callback);
     return () => listeners.delete(callback);
@@ -26,19 +21,24 @@ const createStore = ({ slices }) => {
   const useStore = (selector) =>
     useSyncExternalStore(subscribe, () => selector(getState()));
 
+  const transformSlice = (state, sliceKey, fn) => ({
+    ...state,
+    [sliceKey]: fn(state[sliceKey]),
+  });
+
   const transformationFunctions = mapValues(slices, (slice, sliceKey) =>
     mapValues(
       slice.actions,
       (action) =>
         (...args) =>
         (state) =>
-          transformSlice(state, sliceKey, action(...args))
+          useStore.transformSlice(state, sliceKey, action(...args))
     )
   );
 
   const compose = (fn) => {
     const transformations = fn(transformationFunctions);
-    setState((state) =>
+    useStore.setState((state) =>
       transformations.reduce(
         (acc, transformation) => transformation(acc),
         state
@@ -48,19 +48,18 @@ const createStore = ({ slices }) => {
 
   Object.entries(slices).forEach(([sliceKey, slice]) => {
     state[sliceKey] = slice.initialState;
-    actions[sliceKey] = mapValues(
-      slice.actions,
-      (action, actionKey) =>
-        (...args) => {
-          useStore.setState(
-            transformSlice(state, sliceKey, action(...args)),
-            `${sliceKey}/${actionKey}`
-          );
-        }
-    );
+    actions[sliceKey] = mapValues(slice.actions, (fn) => (...args) => {
+      useStore.setState(useStore.transformSlice(state, sliceKey, fn(...args)));
+    });
   });
 
-  Object.assign(useStore, { getState, setState, actions, compose });
+  Object.assign(useStore, {
+    getState,
+    setState,
+    actions,
+    compose,
+    transformSlice,
+  });
 
   return useStore;
 };

@@ -1,15 +1,9 @@
 import produce from "immer";
 
 export const withImmer = (store) => {
-  const originalSet = store.setState;
-  store.setState = (fn, name) =>
-    originalSet(
-      (state) =>
-        produce(state, (draft) => {
-          draft = fn(draft);
-        }),
-      name
-    );
+  const originalTransformSlice = store.transformSlice;
+  store.transformSlice = (state, sliceKey, fn) =>
+    originalTransformSlice(state, sliceKey, produce(fn));
   return store;
 };
 
