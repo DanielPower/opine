@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import mapValues from "lodash.mapvalues";
 
-const createStore = ({ slices }) => {
+const createStore = (slices) => {
   const listeners = new Set();
   let state = {};
   let actions = {};
