@@ -10,7 +10,7 @@ const withDevTools = (store, options) => {
     });
     store.setState = (fn, name) => {
       originalSet(fn, name);
-      devTools.send(name, store.getState());
+      devTools.send(name ?? "anonymous", store.getState());
     };
   }
   return store;
